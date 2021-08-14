@@ -1705,7 +1705,7 @@ class NostalgiaForInfinityNext_ChangeToTower_V5_2(IStrategy):
         self.hold_trade_ids = {}
 
         # Update values from config file, if it exists
-        hold_trades_config_file = NostalgiaForInfinityNext.get_hold_trades_config_file()
+        hold_trades_config_file = NostalgiaForInfinityNext_ChangeToTower_V5_2.get_hold_trades_config_file()
         if not hold_trades_config_file:
             return
 
