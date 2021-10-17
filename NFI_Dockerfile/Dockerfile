@@ -4,6 +4,6 @@ FROM freqtradeorg/freqtrade:develop
 # Don't forget to switch the user back below!
 USER root
 
-RUN pip install pandas_ta
+RUN pip install pandas-ta
 
 USER ftuser
