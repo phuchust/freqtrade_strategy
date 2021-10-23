@@ -104,7 +104,12 @@
     "telegram": {
         "enabled": true,
         "token": "TOKEN HERE",
-        "chat_id": "CHATID/USERID HERE"
+        "chat_id": "CHATID/USERID HERE",
+	"keyboard": [   
+		["/daily", "/stats", "/balance", "/profit"],
+		["/status table", "/performance"],
+		["/show_config", "/whitelist", "/logs"]
+	]
     },
     "bot_name": "freqtrade",
     "initial_state": "running",
