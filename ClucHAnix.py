@@ -2,8 +2,9 @@ import freqtrade.vendor.qtpylib.indicators as qtpylib
 import numpy as np
 import talib.abstract as ta
 from freqtrade.strategy.interface import IStrategy
-from freqtrade.strategy import merge_informative_pair
+from freqtrade.strategy import merge_informative_pair, DecimalParameter, stoploss_from_open, RealParameter
 from pandas import DataFrame, Series
+from datetime import datetime
 
 def bollinger_bands(stock_price, window_size, num_of_std):
     rolling_mean = stock_price.rolling(window=window_size).mean()
@@ -21,41 +22,40 @@ class ClucHAnix(IStrategy):
     PASTE OUTPUT FROM HYPEROPT HERE
     Can be overridden for specific sub-strategies (stake currencies) at the bottom.
     """
-
-    # Buy hyperspace params:
     buy_params = {
-        'bbdelta-close': 0.01965,
-        'bbdelta-tail': 0.95089,
-        'close-bblower': 0.00799,
-        'closedelta-close': 0.00556,
-        'rocr-1h': 0.54904
+        'bbdelta_close': 0.01965,
+        'bbdelta_tail': 0.95089,
+        'close_bblower': 0.00799,
+        'closedelta_close': 0.00556,
+        'rocr_1h': 0.54904
     }
 
     # Sell hyperspace params:
     sell_params = {
+        # custom stoploss params, come from BB_RPB_TSL
+        "pHSL": -0.32,
+        "pPF_1": 0.02,
+        "pPF_2": 0.047,
+        "pSL_1": 0.02,
+        "pSL_2": 0.046, 
+
         'sell-fisher': 0.38414, 
         'sell-bbmiddle-close': 1.07634
     }
 
     # ROI table:
     minimal_roi = {
-        "0": 0.02139,
-        "36": 0.01666,
-        "174": 0.01191,
-        "463": 0.00874,
-        "593": 0.00514,
-        "604": 0.00031,
-        "786": 0
+        "70": 0
     }
 
     # Stoploss:
-    stoploss = -0.23144
+    stoploss = -0.99   # use custom stoploss
 
     # Trailing stop:
-    trailing_stop = True
-    trailing_stop_positive = 0.3207
-    trailing_stop_positive_offset = 0.3849
-    trailing_only_offset_is_reached = True
+    trailing_stop = False
+    trailing_stop_positive = 0.001
+    trailing_stop_positive_offset = 0.012
+    trailing_only_offset_is_reached = False
 
     """
     END HYPEROPT
@@ -66,12 +66,82 @@ class ClucHAnix(IStrategy):
     # Make sure these match or are not overridden in config
     use_sell_signal = True
     sell_profit_only = False
-    ignore_roi_if_buy_signal = True
+    ignore_roi_if_buy_signal = False
+
+    # Custom stoploss
+    use_custom_stoploss = True
+
+    process_only_new_candles = True
+    startup_candle_count = 168
+
+    order_types = {
+        'buy': 'market',
+        'sell': 'market',
+        'emergencysell': 'market',
+        'forcebuy': "market",
+        'forcesell': 'market',
+        'stoploss': 'market',
+        'stoploss_on_exchange': False,
+
+        'stoploss_on_exchange_interval': 60,
+        'stoploss_on_exchange_limit_ratio': 0.99
+    }
+
+    # buy params
+    rocr_1h = RealParameter(0.5, 1.0, default=0.54904, space='buy', optimize=True)
+    bbdelta_close = RealParameter(0.0005, 0.02, default=0.01965, space='buy', optimize=True)
+    closedelta_close = RealParameter(0.0005, 0.02, default=0.00556, space='buy', optimize=True)
+    bbdelta_tail = RealParameter(0.7, 1.0, default=0.95089, space='buy', optimize=True)
+    close_bblower = RealParameter(0.0005, 0.02, default=0.00799, space='buy', optimize=True)
+
+    # hard stoploss profit
+    pHSL = DecimalParameter(-0.500, -0.040, default=-0.08, decimals=3, space='sell', load=True)
+    # profit threshold 1, trigger point, SL_1 is used
+    pPF_1 = DecimalParameter(0.008, 0.020, default=0.016, decimals=3, space='sell', load=True)
+    pSL_1 = DecimalParameter(0.008, 0.020, default=0.011, decimals=3, space='sell', load=True)
+
+    # profit threshold 2, SL_2 is used
+    pPF_2 = DecimalParameter(0.040, 0.100, default=0.080, decimals=3, space='sell', load=True)
+    pSL_2 = DecimalParameter(0.020, 0.070, default=0.040, decimals=3, space='sell', load=True)
 
     def informative_pairs(self):
         pairs = self.dp.current_whitelist()
         informative_pairs = [(pair, '1h') for pair in pairs]
         return informative_pairs
+
+
+    ############################################################################
+    #come from BB_RPB_TSL
+
+    # Custom Trailing stoploss ( credit to Perkmeister for this custom stoploss to help the strategy ride a green candle )
+    def custom_stoploss(self, pair: str, trade: 'Trade', current_time: datetime,
+                        current_rate: float, current_profit: float, **kwargs) -> float:
+    
+        # hard stoploss profit
+        HSL = self.pHSL.value
+        PF_1 = self.pPF_1.value
+        SL_1 = self.pSL_1.value
+        PF_2 = self.pPF_2.value
+        SL_2 = self.pSL_2.value
+
+        # For profits between PF_1 and PF_2 the stoploss (sl_profit) used is linearly interpolated
+        # between the values of SL_1 and SL_2. For all profits above PL_2 the sl_profit value
+        # rises linearly with current profit, for profits below PF_1 the hard stoploss profit is used.
+
+        if (current_profit > PF_2):
+            sl_profit = SL_2 + (current_profit - PF_2)
+        elif (current_profit > PF_1):
+            sl_profit = SL_1 + ((current_profit - PF_1) * (SL_2 - SL_1) / (PF_2 - PF_1))
+        else:
+            sl_profit = HSL
+
+        # Only for hyperopt invalid return
+        if (sl_profit >= current_profit):
+            return -0.99
+    
+        return stoploss_from_open(sl_profit, current_profit)
+
+    ############################################################################
 
     def populate_indicators(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
         # # Heikin Ashi Candles
@@ -122,19 +192,19 @@ class ClucHAnix(IStrategy):
 
         dataframe.loc[
             (
-                dataframe['rocr_1h'].gt(params['rocr-1h'])
+                dataframe['rocr_1h'].gt(self.rocr_1h.value)
             ) &
             ((      
                     (dataframe['lower'].shift().gt(0)) &
-                    (dataframe['bbdelta'].gt(dataframe['ha_close'] * params['bbdelta-close'])) &
-                    (dataframe['closedelta'].gt(dataframe['ha_close'] * params['closedelta-close'])) &
-                    (dataframe['tail'].lt(dataframe['bbdelta'] * params['bbdelta-tail'])) &
+                    (dataframe['bbdelta'].gt(dataframe['ha_close'] * self.bbdelta_close.value)) &
+                    (dataframe['closedelta'].gt(dataframe['ha_close'] * self.closedelta_close.value)) &
+                    (dataframe['tail'].lt(dataframe['bbdelta'] * self.bbdelta_tail.value)) &
                     (dataframe['ha_close'].lt(dataframe['lower'].shift())) &
                     (dataframe['ha_close'].le(dataframe['ha_close'].shift()))
             ) |
             (       
                     (dataframe['ha_close'] < dataframe['ema_slow']) &
-                    (dataframe['ha_close'] < params['close-bblower'] * dataframe['bb_lowerband']) 
+                    (dataframe['ha_close'] < self.close_bblower.value * dataframe['bb_lowerband'])
             )),
             'buy'
         ] = 1
