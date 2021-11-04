@@ -1,0 +1,2 @@
+Pump filter
+dataframe['close'] < 1.4 * ta.MIN(dataframe, timeperiod=30)
