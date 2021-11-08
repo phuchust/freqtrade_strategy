@@ -1,2 +1,6 @@
 Pump filter
+5m
 dataframe['close'] < 1.4 * ta.MIN(dataframe, timeperiod=30)
+
+1m
+dataframe['close'] < 1.4 * ta.MIN(dataframe, timeperiod=150)
