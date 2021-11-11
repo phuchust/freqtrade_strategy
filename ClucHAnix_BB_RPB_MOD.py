@@ -439,7 +439,8 @@ class ClucHAnix_BB_RPB_MOD(IStrategy):
         return dataframe
 
     def populate_sell_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
-
+        params = self.sell_params
+        
         dataframe.loc[
             (dataframe['fisher'] > params['sell-fisher']) &
             (dataframe['ha_high'].le(dataframe['ha_high'].shift(1))) &
