@@ -286,6 +286,7 @@ class ClucHAnix_BB_RPB_MOD(IStrategy):
         dataframe['tail'] = (dataframe['ha_close'] - dataframe['ha_low']).abs()
         dataframe['bb_lowerband'] = dataframe['lower']
 
+        dataframe['ema_fast'] = ta.EMA(dataframe['ha_close'], timeperiod=3)
         dataframe['ema_slow'] = ta.EMA(dataframe['ha_close'], timeperiod=50)
         dataframe['rocr'] = ta.ROCR(dataframe['ha_close'], timeperiod=28)
 
