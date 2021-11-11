@@ -10,7 +10,7 @@ import talib.abstract as ta
 import technical.indicators as ftt
 from freqtrade.persistence import Trade, PairLocks
 from freqtrade.strategy import (BooleanParameter, DecimalParameter,
-                                IntParameter, merge_informative_pair)
+                                IntParameter, stoploss_from_open, merge_informative_pair)
 from freqtrade.strategy.interface import IStrategy
 from pandas import DataFrame, Series
 from skopt.space import Dimension, Integer
