@@ -14,8 +14,6 @@ from freqtrade.strategy import (BooleanParameter, DecimalParameter,
 from freqtrade.strategy.interface import IStrategy
 from pandas import DataFrame, Series
 from skopt.space import Dimension, Integer
-from py3cw.request import Py3CW
-
 
 def bollinger_bands(stock_price, window_size, num_of_std):
     rolling_mean = stock_price.rolling(window=window_size).mean()
